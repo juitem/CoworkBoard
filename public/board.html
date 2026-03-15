@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoworkBoard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  .topbar { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .topbar h1 { font-size: 1.1rem; font-weight: 600; }
+  .topbar-sub { font-size: .85rem; opacity: .65; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* 식별 패널 */
+  .identify-wrap { display: flex; justify-content: center; align-items: center; min-height: 70vh; }
+  .identify-card { background: #fff; border-radius: 12px; padding: 36px; width: 360px; box-shadow: 0 4px 24px rgba(0,0,0,.1); }
+  .identify-card h2 { margin-bottom: 20px; font-size: 1.2rem; }
+
+  label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 4px; color: #555; }
+  input[type=text], textarea, select {
+    width: 100%; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: .92rem; outline: none; transition: border-color .2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: #1a1a2e; }
+  .form-row { margin-bottom: 14px; }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #1a1a2e; color: #fff; }
+  .btn-outline { background: transparent; border: 1.5px solid #1a1a2e; color: #1a1a2e; }
+  .btn-sm { padding: 5px 12px; font-size: .8rem; }
+  .btn-xs { padding: 3px 8px; font-size: .75rem; }
+  .btn-danger { background: #e94560; color: #fff; }
+
+  .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .card-header h2 { font-size: 1rem; font-weight: 700; }
+
+  /* 내 행 편집 */
+  .my-row-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .saving-indicator { font-size: .8rem; color: #888; margin-left: auto; }
+  .saving-indicator.saving { color: #1a73e8; }
+
+  /* 전체 테이블 */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  th { background: #1a1a2e; color: #fff; padding: 10px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  tr.my-row td { background: #e8f5e9; }
+  tr:hover td { background: #f7f8fa; }
+  tr.my-row:hover td { background: #d4edda; }
+  .file-link { display: inline-flex; align-items: center; gap: 4px; color: #1a73e8; text-decoration: none; font-size: .8rem; }
+  .file-link:hover { text-decoration: underline; }
+
+  /* 파일 업로드 */
+  .upload-area { border: 2px dashed #ccc; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: border-color .2s; }
+  .upload-area:hover { border-color: #1a1a2e; }
+  .upload-area input { display: none; }
+  .file-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .file-item { display: flex; align-items: center; gap: 8px; font-size: .82rem; background: #f7f8fa; padding: 5px 10px; border-radius: 6px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: .88rem; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block; margin-right: 4px; }
+  .status-dot.live { background: #0f9b58; }
+
+  .no-board { text-align: center; padding: 60px 20px; color: #888; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>CoworkBoard</h1>
+  <span class="topbar-sub" id="boardTitle"></span>
+  <span class="status-dot" id="statusDot" title="연결 상태"></span>
+</div>
+
+<!-- 보드 없음 -->
+<div id="noBoardSection" class="no-board hidden">
+  <p style="font-size:1.1rem;margin-bottom:8px">⚠️ 보드 ID가 없습니다</p>
+  <p>올바른 URL로 접속해주세요.</p>
+</div>
+
+<!-- 식별 -->
+<div id="identifySection" class="identify-wrap hidden">
+  <div class="identify-card">
+    <h2>👋 참여하기</h2>
+    <p style="font-size:.85rem;color:#888;margin-bottom:16px">이름과 ID로 내 행을 찾거나 시작합니다.</p>
+    <div class="form-row"><label>이름</label><input type="text" id="myName" placeholder="홍길동"></div>
+    <div class="form-row"><label>ID</label><input type="text" id="myId" placeholder="hong001"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="identify()">시작하기</button>
+    <div id="identifyError" style="color:#e94560;font-size:.83rem;margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div id="mainSection" class="container hidden">
+
+  <!-- 내 행 편집 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>✏️ 내 답변 입력</h2>
+      <span class="saving-indicator" id="savingIndicator">저장됨</span>
+    </div>
+    <div id="myRowForm" class="my-row-form"></div>
+  </div>
+
+  <!-- 파일 업로드 -->
+  <div class="card">
+    <div class="card-header"><h2>📎 파일 첨부</h2></div>
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" multiple onchange="uploadFiles(this.files)">
+      <p style="color:#888">클릭하거나 파일을 드래그하여 업로드</p>
+      <p style="font-size:.78rem;color:#aaa;margin-top:4px">최대 50MB</p>
+    </div>
+    <div id="myFileList" class="file-list"></div>
+  </div>
+
+  <!-- 전체 현황 테이블 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📊 전체 현황</h2>
+      <span style="font-size:.8rem;color:#888" id="lastUpdated"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="tableHead"></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const params = new URLSearchParams(location.search)
+const boardId = params.get('id')
+let myRowId = null
+let myName = null
+let myIdValue = null
+let columns = []
+let rows = []
+let saveTimer = null
+let eventSource = null
+
+// 세션 스토리지에서 이전 식별 정보 복원
+const SESSION_KEY = `cowork_${boardId}`
+
+window.onload = async () => {
+  if (!boardId) {
+    document.getElementById('noBoardSection').classList.remove('hidden')
+    return
+  }
+
+  // 저장된 세션 확인
+  const saved = sessionStorage.getItem(SESSION_KEY)
+  if (saved) {
+    const { name, id, rowId } = JSON.parse(saved)
+    myName = name; myIdValue = id; myRowId = rowId
+    document.getElementById('identifySection').classList.add('hidden')
+    await init()
+  } else {
+    document.getElementById('identifySection').classList.remove('hidden')
+  }
+}
+
+async function identify() {
+  const name = document.getElementById('myName').value.trim()
+  const id = document.getElementById('myId').value.trim()
+  if (!name) { document.getElementById('identifyError').textContent = '이름을 입력하세요'; return }
+
+  // 내 행 찾기
+  const res = await fetch(`/api/boards/${boardId}/rows`)
+  const allRows = await res.json()
+  const myRow = allRows.find(r => r.member_name === name && r.member_id === id)
+
+  if (!myRow) {
+    document.getElementById('identifyError').textContent =
+      '등록된 행이 없습니다. Master에게 행 추가를 요청하세요.'
+    return
+  }
+
+  myName = name; myIdValue = id; myRowId = myRow.id
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ name, id, rowId: myRow.id }))
+  document.getElementById('identifySection').classList.add('hidden')
+  await init()
+}
+
+async function init() {
+  await loadAll()
+  startSSE()
+  document.getElementById('mainSection').classList.remove('hidden')
+  setupDragDrop()
+}
+
+// ── 데이터 로드 ─────────────────────────────────────────────────────────────
+
+async function loadAll() {
+  const [boardRes, rowsRes] = await Promise.all([
+    fetch(`/api/boards/${boardId}`),
+    fetch(`/api/boards/${boardId}/rows`)
+  ])
+  const board = await boardRes.json()
+  rows = await rowsRes.json()
+  columns = board.columns
+
+  document.getElementById('boardTitle').textContent = board.title
+  document.title = `CoworkBoard — ${board.title}`
+
+  renderMyForm()
+  renderTable()
+  renderMyFiles()
+  document.getElementById('lastUpdated').textContent =
+    '업데이트: ' + new Date().toLocaleTimeString('ko-KR')
+}
+
+// ── 내 행 폼 ────────────────────────────────────────────────────────────────
+
+function renderMyForm() {
+  const myRow = rows.find(r => r.id === myRowId)
+  if (!myRow) return
+  const form = document.getElementById('myRowForm')
+  form.innerHTML = columns.map(col => {
+    const val = myRow.data[col.key] ?? ''
+    if (col.type === 'select') {
+      const opts = (col.options || []).map(o =>
+        `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')
+      return `<div class="form-row"><label>${col.label}</label>
+        <select data-key="${col.key}" onchange="scheduleAutoSave()"><option value=""></option>${opts}</select></div>`
+    }
+    if (col.type === 'textarea') {
+      return `<div class="form-row"><label>${col.label}</label>
+        <textarea data-key="${col.key}" oninput="scheduleAutoSave()">${val}</textarea></div>`
+    }
+    return `<div class="form-row"><label>${col.label}</label>
+      <input type="${col.type === 'number' ? 'number' : 'text'}" data-key="${col.key}"
+        value="${val}" oninput="scheduleAutoSave()"></div>`
+  }).join('')
+}
+
+function scheduleAutoSave() {
+  const ind = document.getElementById('savingIndicator')
+  ind.textContent = '저장 중...'; ind.classList.add('saving')
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(saveMyRow, 800)
+}
+
+async function saveMyRow() {
+  const data = {}
+  document.querySelectorAll('[data-key]').forEach(el => { data[el.dataset.key] = el.value })
+  await fetch(`/api/boards/${boardId}/rows/${myRowId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data })
+  })
+  const ind = document.getElementById('savingIndicator')
+  ind.textContent = '저장됨'; ind.classList.remove('saving')
+}
+
+// ── 전체 테이블 ─────────────────────────────────────────────────────────────
+
+function renderTable() {
+  const head = document.getElementById('tableHead')
+  const body = document.getElementById('tableBody')
+
+  head.innerHTML = '<th>이름</th><th>ID</th>' +
+    columns.map(c => `<th>${c.label}</th>`).join('') +
+    '<th>첨부파일</th><th>수정시간</th>'
+
+  body.innerHTML = rows.map(row => `
+    <tr class="${row.id === myRowId ? 'my-row' : ''}">
+      <td>${row.member_name}${row.id === myRowId ? ' 👤' : ''}</td>
+      <td>${row.member_id}</td>
+      ${columns.map(c => `<td>${row.data[c.key] ?? ''}</td>`).join('')}
+      <td>${row.files.map(f =>
+        `<a class="file-link" href="${f.url}" target="_blank">📎 ${f.original_name}</a>`
+      ).join('<br>')}</td>
+      <td style="font-size:.78rem;color:#888">${row.updated_at.replace('T',' ').slice(0,16)}</td>
+    </tr>
+  `).join('')
+}
+
+// ── 파일 업로드 ─────────────────────────────────────────────────────────────
+
+async function uploadFiles(fileList) {
+  for (const file of fileList) {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`/api/boards/${boardId}/rows/${myRowId}/files`, { method: 'POST', body: fd })
+    if (res.ok) showToast(`업로드됨: ${file.name}`)
+    else showToast(`업로드 실패: ${file.name}`)
+  }
+  await loadAll()
+  document.getElementById('fileInput').value = ''
+}
+
+function renderMyFiles() {
+  const myRow = rows.find(r => r.id === myRowId)
+  if (!myRow) return
+  const list = document.getElementById('myFileList')
+  list.innerHTML = myRow.files.map(f => `
+    <div class="file-item">
+      <a class="file-link" href="${f.url}" target="_blank">📎 ${f.original_name}</a>
+      <span style="color:#aaa;font-size:.75rem">${(f.size/1024).toFixed(1)} KB</span>
+      <button class="btn btn-danger btn-xs" style="margin-left:auto" onclick="deleteFile('${f.id}')">삭제</button>
+    </div>
+  `).join('')
+}
+
+async function deleteFile(fileId) {
+  if (!confirm('파일을 삭제하시겠습니까?')) return
+  await fetch(`/api/boards/${boardId}/rows/${myRowId}/files/${fileId}`, { method: 'DELETE' })
+  await loadAll()
+}
+
+// 드래그 앤 드롭
+function setupDragDrop() {
+  const area = document.querySelector('.upload-area')
+  area.addEventListener('dragover', e => { e.preventDefault(); area.style.borderColor = '#1a1a2e' })
+  area.addEventListener('dragleave', () => { area.style.borderColor = '#ccc' })
+  area.addEventListener('drop', e => {
+    e.preventDefault(); area.style.borderColor = '#ccc'
+    uploadFiles(e.dataTransfer.files)
+  })
+}
+
+// ── SSE ─────────────────────────────────────────────────────────────────────
+
+function startSSE() {
+  eventSource = new EventSource(`/api/boards/${boardId}/events`)
+  eventSource.onopen = () => document.getElementById('statusDot').classList.add('live')
+  eventSource.onmessage = e => { if (e.data === 'update') loadAll() }
+  eventSource.onerror = () => {
+    document.getElementById('statusDot').classList.remove('live')
+    setTimeout(startSSE, 5000)
+  }
+}
+
+// ── 유틸 ────────────────────────────────────────────────────────────────────
+
+let toastTimer
+function showToast(msg) {
+  const t = document.getElementById('toast')
+  t.textContent = msg; t.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500)
+}
+</script>
+</body>
+</html>

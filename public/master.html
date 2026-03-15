@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoworkBoard — Master</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  .topbar { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .topbar h1 { font-size: 1.1rem; font-weight: 600; }
+  .badge { background: #e94560; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+  /* 로그인 패널 */
+  .login-wrap { display: flex; justify-content: center; align-items: center; min-height: 70vh; }
+  .login-card { background: #fff; border-radius: 12px; padding: 40px; width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,.1); }
+  .login-card h2 { margin-bottom: 24px; font-size: 1.3rem; }
+
+  /* 폼 공통 */
+  label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 4px; color: #555; }
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: .92rem; outline: none; transition: border-color .2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: #1a1a2e; }
+  .form-row { margin-bottom: 16px; }
+  textarea { resize: vertical; min-height: 60px; }
+
+  /* 버튼 */
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #1a1a2e; color: #fff; }
+  .btn-danger  { background: #e94560; color: #fff; }
+  .btn-success { background: #0f9b58; color: #fff; }
+  .btn-outline { background: transparent; border: 1.5px solid #1a1a2e; color: #1a1a2e; }
+  .btn-sm { padding: 5px 12px; font-size: .8rem; }
+  .btn-xs { padding: 3px 8px; font-size: .75rem; }
+
+  /* 카드 */
+  .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .card-header h2 { font-size: 1rem; font-weight: 700; }
+
+  /* 컬럼 편집기 */
+  .col-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .col-item { display: flex; gap: 8px; align-items: center; background: #f7f8fa; padding: 8px 10px; border-radius: 8px; }
+  .col-item input, .col-item select { flex: 1; }
+  .col-options-input { flex: 2 !important; }
+
+  /* 테이블 */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th { background: #1a1a2e; color: #fff; padding: 10px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  tr:hover td { background: #f7f8fa; }
+  .file-link { display: inline-flex; align-items: center; gap: 4px; color: #1a73e8; text-decoration: none; font-size: .8rem; }
+  .file-link:hover { text-decoration: underline; }
+
+  /* 공유 섹션 */
+  .share-url { background: #f0f2f5; padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: .88rem; word-break: break-all; }
+  .qr-img { margin-top: 10px; }
+
+  /* 알림 */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: .88rem; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+
+  .hidden { display: none !important; }
+  .gap-8 { gap: 8px; }
+  .flex { display: flex; }
+  .flex-wrap { flex-wrap: wrap; }
+  .items-center { align-items: center; }
+  .mt-8 { margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>CoworkBoard</h1>
+  <span class="badge">MASTER</span>
+  <div class="topbar-actions" id="topbarActions"></div>
+</div>
+
+<!-- 로그인 -->
+<div id="loginSection" class="login-wrap">
+  <div class="login-card">
+    <h2>Master 로그인</h2>
+    <div id="loginMode">
+      <div class="form-row">
+        <label>보드 ID (기존 보드 열기)</label>
+        <input type="text" id="existingBoardId" placeholder="보드 ID 입력 (없으면 새로 만들기)">
+      </div>
+      <div class="form-row">
+        <label>Master 비밀번호</label>
+        <input type="password" id="loginPassword" placeholder="비밀번호">
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="loginOrCreate()">열기 / 새 보드 만들기</button>
+    </div>
+    <div id="loginError" style="color:#e94560;font-size:.85rem;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div id="mainSection" class="container hidden">
+
+  <!-- 보드 설정 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📋 보드 설정</h2>
+      <button class="btn btn-primary btn-sm" onclick="saveBoard()">저장</button>
+    </div>
+    <div class="form-row">
+      <label>보드 제목</label>
+      <input type="text" id="boardTitle" placeholder="보드 제목">
+    </div>
+    <div class="form-row">
+      <label>설명</label>
+      <textarea id="boardDesc" placeholder="설명 (선택)"></textarea>
+    </div>
+    <div class="form-row">
+      <label>컬럼 정의</label>
+      <div id="colList" class="col-list"></div>
+      <button class="btn btn-outline btn-sm mt-8" onclick="addColumn()">+ 컬럼 추가</button>
+    </div>
+  </div>
+
+  <!-- 행 관리 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>👥 파트원 행 관리</h2>
+      <button class="btn btn-primary btn-sm" onclick="showAddRowModal()">+ 행 추가</button>
+      <button class="btn btn-success btn-sm" onclick="exportCSV()">CSV 내보내기</button>
+    </div>
+    <div class="table-wrap">
+      <table id="masterTable">
+        <thead><tr id="tableHead"></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 공유 -->
+  <div class="card">
+    <div class="card-header"><h2>🔗 공유</h2></div>
+    <div class="form-row">
+      <label>보드 ID</label>
+      <div class="flex gap-8 items-center">
+        <div class="share-url" id="boardIdDisplay"></div>
+        <button class="btn btn-outline btn-sm" onclick="copyBoardId()">복사</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>멤버 접속 URL</label>
+      <div class="flex gap-8 items-center">
+        <div class="share-url" id="memberUrl"></div>
+        <button class="btn btn-outline btn-sm" onclick="copyMemberUrl()">복사</button>
+      </div>
+    </div>
+    <div id="qrSection"></div>
+  </div>
+
+</div>
+
+<!-- 행 추가 모달 -->
+<div id="addRowModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;justify-content:center;align-items:center">
+  <div style="background:#fff;border-radius:12px;padding:28px;width:360px">
+    <h3 style="margin-bottom:16px">행 추가</h3>
+    <div class="form-row"><label>이름</label><input type="text" id="newMemberName" placeholder="홍길동"></div>
+    <div class="form-row"><label>ID</label><input type="text" id="newMemberId" placeholder="hong001"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary" onclick="addRow()">추가</button>
+      <button class="btn btn-outline" onclick="hideAddRowModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let boardId = null
+let masterPassword = null
+let columns = []
+let rows = []
+let eventSource = null
+
+// ── 로그인 / 보드 열기 ──────────────────────────────────────────────────────
+
+async function loginOrCreate() {
+  const existingId = document.getElementById('existingBoardId').value.trim()
+  const password = document.getElementById('loginPassword').value.trim()
+  if (!password) { setLoginError('비밀번호를 입력하세요'); return }
+
+  if (existingId) {
+    // 기존 보드 열기
+    const res = await fetch(`/api/boards/${existingId}`)
+    if (!res.ok) { setLoginError('보드를 찾을 수 없습니다'); return }
+    // 비밀번호 확인 (board 수정 시도로 확인)
+    const testRes = await fetch(`/api/boards/${existingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...(await (await fetch(`/api/boards/${existingId}`)).json()), master_password: password })
+    })
+    if (!testRes.ok) { setLoginError('비밀번호가 틀렸습니다'); return }
+    boardId = existingId
+  } else {
+    // 새 보드 생성
+    const res = await fetch('/api/boards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '새 보드', master_password: password })
+    })
+    const data = await res.json()
+    boardId = data.id
+  }
+
+  masterPassword = password
+  document.getElementById('loginSection').classList.add('hidden')
+  document.getElementById('mainSection').classList.remove('hidden')
+  document.getElementById('topbarActions').innerHTML =
+    `<span style="font-size:.85rem;opacity:.7">보드: ${boardId}</span>`
+
+  await loadBoard()
+  startSSE()
+  loadQR()
+}
+
+function setLoginError(msg) {
+  document.getElementById('loginError').textContent = msg
+}
+
+// ── 보드 로드 ───────────────────────────────────────────────────────────────
+
+async function loadBoard() {
+  const [boardRes, rowsRes] = await Promise.all([
+    fetch(`/api/boards/${boardId}`),
+    fetch(`/api/boards/${boardId}/rows`)
+  ])
+  const board = await boardRes.json()
+  rows = await rowsRes.json()
+  columns = board.columns
+
+  document.getElementById('boardTitle').value = board.title
+  document.getElementById('boardDesc').value = board.description
+  renderColumns()
+  renderTable()
+  updateShareInfo()
+}
+
+// ── 컬럼 편집 ───────────────────────────────────────────────────────────────
+
+function renderColumns() {
+  const list = document.getElementById('colList')
+  list.innerHTML = ''
+  columns.forEach((col, i) => {
+    const div = document.createElement('div')
+    div.className = 'col-item'
+    div.innerHTML = `
+      <input type="text" value="${col.label}" placeholder="컬럼명" oninput="columns[${i}].label=this.value">
+      <select onchange="columns[${i}].type=this.value;renderColumns()">
+        ${['text','number','select','textarea'].map(t =>
+          `<option value="${t}" ${col.type===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+      ${col.type === 'select' ? `<input class="col-options-input" type="text" value="${(col.options||[]).join(',')}" placeholder="옵션1,옵션2,옵션3" oninput="columns[${i}].options=this.value.split(',').map(s=>s.trim())">` : ''}
+      <button class="btn btn-danger btn-xs" onclick="removeColumn(${i})">✕</button>
+    `
+    list.appendChild(div)
+  })
+}
+
+function addColumn() {
+  columns.push({ key: 'col_' + Date.now(), label: '', type: 'text' })
+  renderColumns()
+}
+
+function removeColumn(i) {
+  columns.splice(i, 1)
+  renderColumns()
+}
+
+async function saveBoard() {
+  // key 자동 생성
+  columns = columns.map(c => ({ ...c, key: c.key || 'col_' + Date.now() + Math.random() }))
+  const res = await fetch(`/api/boards/${boardId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: document.getElementById('boardTitle').value,
+      description: document.getElementById('boardDesc').value,
+      columns,
+      master_password: masterPassword
+    })
+  })
+  if (res.ok) { showToast('저장되었습니다'); await loadBoard() }
+  else showToast('저장 실패')
+}
+
+// ── 테이블 렌더 ─────────────────────────────────────────────────────────────
+
+function renderTable() {
+  const head = document.getElementById('tableHead')
+  const body = document.getElementById('tableBody')
+
+  head.innerHTML = '<th>이름</th><th>ID</th>' +
+    columns.map(c => `<th>${c.label}</th>`).join('') +
+    '<th>첨부파일</th><th>수정시간</th><th></th>'
+
+  body.innerHTML = rows.map(row => `
+    <tr>
+      <td>${row.member_name}</td>
+      <td>${row.member_id}</td>
+      ${columns.map(c => `<td>${row.data[c.key] ?? ''}</td>`).join('')}
+      <td>${row.files.map(f =>
+        `<a class="file-link" href="${f.url}" target="_blank">📎 ${f.original_name}</a>`
+      ).join('<br>')}</td>
+      <td style="font-size:.78rem;color:#888">${row.updated_at.replace('T',' ').slice(0,16)}</td>
+      <td><button class="btn btn-danger btn-xs" onclick="deleteRow('${row.id}')">삭제</button></td>
+    </tr>
+  `).join('')
+}
+
+// ── 행 관리 ─────────────────────────────────────────────────────────────────
+
+function showAddRowModal() {
+  document.getElementById('addRowModal').style.display = 'flex'
+}
+function hideAddRowModal() {
+  document.getElementById('addRowModal').style.display = 'none'
+}
+
+async function addRow() {
+  const name = document.getElementById('newMemberName').value.trim()
+  const id = document.getElementById('newMemberId').value.trim()
+  if (!name) { alert('이름을 입력하세요'); return }
+  await fetch(`/api/boards/${boardId}/rows`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ member_name: name, member_id: id, master_password: masterPassword })
+  })
+  hideAddRowModal()
+  document.getElementById('newMemberName').value = ''
+  document.getElementById('newMemberId').value = ''
+  await loadBoard()
+}
+
+async function deleteRow(rowId) {
+  if (!confirm('이 행을 삭제하시겠습니까?')) return
+  await fetch(`/api/boards/${boardId}/rows/${rowId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ master_password: masterPassword })
+  })
+  await loadBoard()
+}
+
+// ── 공유 ────────────────────────────────────────────────────────────────────
+
+function updateShareInfo() {
+  document.getElementById('boardIdDisplay').textContent = boardId
+  const url = `${location.protocol}//${location.hostname}:${location.port}/board.html?id=${boardId}`
+  document.getElementById('memberUrl').textContent = url
+}
+
+function copyBoardId() {
+  navigator.clipboard.writeText(boardId)
+  showToast('보드 ID 복사됨')
+}
+function copyMemberUrl() {
+  const url = document.getElementById('memberUrl').textContent
+  navigator.clipboard.writeText(url)
+  showToast('URL 복사됨')
+}
+
+async function loadQR() {
+  const res = await fetch(`/api/boards/${boardId}/qr`)
+  const { url, qr } = await res.json()
+  document.getElementById('qrSection').innerHTML = `
+    <label style="display:block;margin-bottom:6px">QR 코드</label>
+    <img class="qr-img" src="${qr}" alt="QR">
+  `
+}
+
+// ── CSV ─────────────────────────────────────────────────────────────────────
+
+function exportCSV() {
+  location.href = `/api/boards/${boardId}/export?master_password=${encodeURIComponent(masterPassword)}`
+}
+
+// ── SSE ─────────────────────────────────────────────────────────────────────
+
+function startSSE() {
+  eventSource = new EventSource(`/api/boards/${boardId}/events`)
+  eventSource.onmessage = e => {
+    if (e.data === 'update') loadBoard()
+  }
+}
+
+// ── 유틸 ────────────────────────────────────────────────────────────────────
+
+let toastTimer
+function showToast(msg) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500)
+}
+</script>
+</body>
+</html>
